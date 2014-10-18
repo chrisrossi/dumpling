@@ -46,6 +46,7 @@ class Store(object):
         session = self._session
         if not session or session.closed:
             self._session = session = _Session(self.fs)
+            self.fs._session()   # Make acidfs join transaction
         return session
 
 

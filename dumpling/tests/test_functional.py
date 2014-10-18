@@ -28,7 +28,6 @@ class FunctionalTests(unittest.TestCase):
         site = Site()
         site.title = u'Test Site'
         store.set_root(site)
-        store.flush()  # need to get rid of this by making AcidFS join transaction
         transaction.commit()
 
         self.assertEqual(store.root().title, 'Test Site')
@@ -38,7 +37,6 @@ class FunctionalTests(unittest.TestCase):
         site = Site()
         site.title = u'Test Site'
         store.set_root(site)
-        store.flush()  # need to get rid of this by making AcidFS join transaction
         transaction.abort()
 
         self.assertEqual(store.root(), None)
@@ -48,7 +46,6 @@ class FunctionalTests(unittest.TestCase):
         site = Site()
         site.title = u'Test Site'
         store.set_root(site)
-        store.flush()  # need to get rid of this by making AcidFS join transaction
         transaction.commit()
 
         site = Site()
