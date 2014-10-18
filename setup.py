@@ -1,17 +1,14 @@
 import os
 from setuptools import setup
 from setuptools import find_packages
-import sys
 
 VERSION = '0.1a1'
 
 requires = [
     'acidfs',
+    'pyyaml',
 ]
 tests_require = requires + []
-
-if sys.version < '2.7':
-    tests_require += ['unittest2']
 
 testing_extras = tests_require + ['nose', 'coverage', 'tox']
 doc_extras = ['Sphinx']
@@ -31,7 +28,6 @@ setup(name='dumpling',
         "Development Status :: 3 - Alpha",
         "Intended Audience :: Developers",
         "Programming Language :: Python",
-        "Programming Language :: Python :: 2.6",
         "Programming Language :: Python :: 2.7",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.3",

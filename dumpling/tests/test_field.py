@@ -1,10 +1,4 @@
-try:  #pragma no cover
-    # Python 2.6
-    import unittest2 as unittest
-    unittest # stfu pyflakes
-except ImportError:
-    # All other versions
-    import unittest
+import unittest
 
 
 from ..field import (
@@ -34,7 +28,7 @@ class TestField(unittest.TestCase):
     def test_get_nomodel(self):
         desc = Field()
         with self.assertRaises(ValueError):
-            desc.__get__(None)
+            desc.__get__(object())
 
     def test_get_default(self):
         obj = DummyObject()

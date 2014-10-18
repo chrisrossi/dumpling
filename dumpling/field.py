@@ -23,6 +23,9 @@ class Field(object):
         self.none = none
 
     def __get__(self, obj, type=None):
+        if obj is None:
+            return self
+
         value = getattr(obj, self.attr, self.default)
         if value is nodefault:
             raise AttributeError(self.__name__)
