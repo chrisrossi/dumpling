@@ -72,6 +72,16 @@ class FunctionalTests(unittest.TestCase):
         foo = folder[u'foo']
         self.assertEqual(foo.name, u'bar')
 
+    def test_item_not_in_folder(self):
+        from dumpling.store import get_child
+        store = self.make_store()
+        site = Site(u'Test Site')
+        store.set_root(site)
+
+        self.assertEqual(get_child(site, 'foo'), None)
+        with self.assertRaises(KeyError):
+            site['foo']
+
 
 @folder
 class Folder(object):

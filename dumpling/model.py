@@ -52,8 +52,15 @@ def folder(cls):
     persisted as a folder containing child objects in the file system.
     """
     model(cls)
+
+    def __getitem__(folder, name):
+        item = get_child(folder, name)
+        if item is None:
+            raise KeyError(name)
+        return item
+
     cls.__dumpling_folder__ = True
-    cls.__getitem__ = get_child
+    cls.__getitem__ = __getitem__
     cls.__setitem__ = set_child
     return cls
 
