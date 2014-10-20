@@ -1,6 +1,7 @@
 import yaml
 
 from .field import Field
+from .store import get_child, set_child
 from .utils import dotted_name
 
 
@@ -41,7 +42,7 @@ def model(cls):
     yaml.add_constructor(tag, constructor)
 
     cls.__dumpling_model__ = True
-    cls.__parent__ = None
+    cls.__dumpling_folder__ = False
     return cls
 
 
@@ -52,11 +53,14 @@ def folder(cls):
     """
     model(cls)
     cls.__dumpling_folder__ = True
+    cls.__getitem__ = get_child
+    cls.__setitem__ = set_child
     return cls
 
 
 class _ObjectState(object):
     dirty = False
+    folder_contents = None
 
 
 class _ObjectStateProperty(object):

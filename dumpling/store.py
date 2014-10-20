@@ -2,11 +2,8 @@ import acidfs
 import transaction
 import yaml
 
-from itertools import islice
-
 from .api import (
     is_dirty,
-    is_folder,
     set_dirty,
 )
 from .compat import string_type, PY3
@@ -62,6 +59,74 @@ class Store(object):
             self._session = session = _Session(self.fs)
             self.fs._session()   # Make acidfs join transaction
         return session
+
+
+def set_child(folder, name, obj):
+    session = folder.__dumpling__.session
+    state = obj.__dumpling__
+    entry = _FolderEntry(folder, name, obj.__dumpling_folder__, obj)
+
+    obj.__parent__ = folder
+    obj.__name__ = name
+    state.session = session
+    state.path = entry.path
+    state.file = entry.file
+    if obj.__dumpling_folder__:
+        state.folder_contents = {}
+
+    contents = _folder_contents(folder)
+    contents[name] = entry
+    set_dirty(obj)
+
+
+def get_child(folder, name):
+    contents = _folder_contents(folder)
+    entry = contents.get(name)
+    if entry:
+        obj = entry.loaded
+        if obj is None:
+            session = folder.__dumpling__.session
+            obj = session.load(entry.path, entry.file, folder, entry.name)
+            entry.loaded = obj
+        return obj
+
+
+class _FolderEntry(object):
+
+    def __init__(self, parent, name, is_folder, loaded=None):
+        self.name = name
+        self.is_folder = is_folder
+        self.loaded = loaded
+        parent_path = parent.__dumpling__.path
+        if parent_path == '/':
+            parent_path = ''
+        self.path = path = '{0}/{1}'.format(
+            parent_path, self.name)
+        if is_folder:
+            self.file = path + '/__index__.yaml'
+        else:
+            self.file = path + '.yaml'
+
+
+def _folder_contents(folder):
+    state = folder.__dumpling__
+    fs = state.session.fs
+    contents = state.folder_contents
+    if contents is None:
+        contents = {}
+        for fname in fs.listdir(state.path):
+            fpath = '{0}/{1}'.format(state.path, fname)
+            if fname.endswith('.yaml'):
+                name = fname[:-5]
+                if name == '__index__':
+                    continue
+                contents[name] = _FolderEntry(folder, name, False)
+            elif fs.isdir(fpath):
+                fpath += '/__index__.yaml'
+                if fs.exists(fpath):
+                    contents[fname] = _FolderEntry(folder, fname, True)
+        state.folder_contents = contents
+    return contents
 
 
 class _NotInCacheType(object):
@@ -126,11 +191,13 @@ class _Session(object):
     def get_root(self):
         root = self.root
         if root is _NotInCache:
-            path = '/__index__.yaml'
-            if self.fs.exists(path):
-                self.root = root = _load(self.fs.open(path))
-                root.__parent__ = None
-                root.__name__ = None
+            file = '/__index__.yaml'
+            if self.fs.exists(file):
+                self.root = root = self.load(
+                    path='/',
+                    file=file,
+                    parent=None,
+                    name=None)
             else:
                 self.root = root = None
         return root
@@ -140,39 +207,41 @@ class _Session(object):
         if prev:
             raise ValueError("Root already set.")
         self.root = root
+        state = root.__dumpling__
+        state.session = self
+        state.path = '/'
+        state.file = '/__index__.yaml'
+        root.__parent__ = None
+        root.__name__ = None
         set_dirty(root)
 
+    def load(self, path, file, parent, name):
+        obj = yaml.load(self.fs.open(file))
+        state = obj.__dumpling__
+        state.session = self
+        state.path = path
+        state.file = file
+        obj.__parent__ = parent
+        obj.__name__ = name
 
-def _load(stream):
-    obj = yaml.load(stream)
-    return obj
+        return obj
 
 
 def _write(obj, stream):
     yaml.dump(obj, stream, default_flow_style=False, allow_unicode=True)
 
 
-def _lineage(obj):
-    if obj.__parent__ is not None:
-        yield _lineage(obj.__parent)
-    yield obj
-
-
-def _path(obj):
-    lineage = [o.__name__ for o in islice(_lineage(obj), 1, None)]
-    if is_folder(obj):
-        folder = '/' + '/'.join(lineage)
-        path = folder + '/__index__.yaml'
-    else:
-        folder = '/' + '/'.join(lineage[:-1])
-        path = folder + '/' + obj.__name__ + '.yaml'
-    return folder, path
-
-
 def _save(fs, obj):
-    folder, path = _path(obj)
-    if not fs.exists(folder):
-        fs.mkdir(folder)
-    with fs.open(path, 'w') as stream:
+    state = obj.__dumpling__
+    if not fs.exists(state.path):
+        fs.mkdir(state.path)
+    with fs.open(state.file, 'w') as stream:
         _write(obj, stream)
     set_dirty(obj, False)
+
+    # XXX better to distinguish between folder whose contents have changed
+    #     versus folder whose attributes have changed
+    if obj.__dumpling_folder__:
+        for entry in _folder_contents(obj).values():
+            if entry.loaded and is_dirty(entry.loaded):
+                _save(fs, entry.loaded)

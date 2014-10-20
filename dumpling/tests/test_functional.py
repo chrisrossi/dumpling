@@ -15,6 +15,7 @@ class FunctionalTests(unittest.TestCase):
         self.tmp = tempfile.mkdtemp()
 
     def tearDown(self):
+       transaction.abort()
        shutil.rmtree(self.tmp)
 
     def make_store(self, **kw):
@@ -26,8 +27,7 @@ class FunctionalTests(unittest.TestCase):
 
     def test_add_root(self):
         store = self.make_store()
-        site = Site()
-        site.title = u'Test Site'
+        site = Site(u'Test Site')
         store.set_root(site)
         transaction.commit()
 
@@ -36,8 +36,7 @@ class FunctionalTests(unittest.TestCase):
 
     def test_abort(self):
         store = self.make_store()
-        site = Site()
-        site.title = u'Test Site'
+        site = Site(u'Test Site')
         store.set_root(site)
         transaction.abort()
 
@@ -45,13 +44,11 @@ class FunctionalTests(unittest.TestCase):
 
     def test_replace_root(self):
         store = self.make_store()
-        site = Site()
-        site.title = u'Test Site'
+        site = Site(u'Test Site')
         store.set_root(site)
         transaction.commit()
 
-        site = Site()
-        site.title = u"You won't like this."
+        site = Site(u"You won't like this.")
         with self.assertRaises(ValueError):
             store.set_root(site)
         transaction.commit()
@@ -61,6 +58,19 @@ class FunctionalTests(unittest.TestCase):
         transaction.commit()
 
         self.assertEqual(store.root().title, u'Test Site')
+
+    def test_add_item_to_folder(self):
+        store = self.make_store()
+        site = Site(u'Test Site')
+        store.set_root(site)
+        site[u'folder'] = folder = Folder()
+        folder[u'foo'] = Widget(u'bar')
+        transaction.commit()
+
+        site = store.root()
+        folder = site[u'folder']
+        foo = folder[u'foo']
+        self.assertEqual(foo.name, u'bar')
 
 
 @folder
@@ -72,7 +82,13 @@ class Folder(object):
 class Site(object):
     title = String()
 
+    def __init__(self, title):
+        self.title = title
+
 
 @model
 class Widget(object):
     name = String()
+
+    def __init__(self, name):
+        self.name = name
