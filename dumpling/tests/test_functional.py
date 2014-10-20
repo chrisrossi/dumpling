@@ -3,6 +3,7 @@ import tempfile
 import transaction
 import unittest
 
+from ..compat import string_type
 from ..field import String
 from ..model import folder, model
 from ..store import Store
@@ -30,7 +31,8 @@ class FunctionalTests(unittest.TestCase):
         store.set_root(site)
         transaction.commit()
 
-        self.assertEqual(store.root().title, 'Test Site')
+        self.assertEqual(store.root().title, u'Test Site')
+        self.assertTrue(isinstance(store.root().title, string_type))
 
     def test_abort(self):
         store = self.make_store()
@@ -58,7 +60,7 @@ class FunctionalTests(unittest.TestCase):
         store.flush()
         transaction.commit()
 
-        self.assertEqual(store.root().title, 'Test Site')
+        self.assertEqual(store.root().title, u'Test Site')
 
 
 @folder

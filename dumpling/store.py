@@ -9,6 +9,20 @@ from .api import (
     is_folder,
     set_dirty,
 )
+from .compat import string_type, PY3
+
+
+if not PY3:
+    # Avoid ugly !!python/unicode tags
+    yaml.add_representer(
+        string_type,
+        lambda dumper, value: dumper.represent_scalar(
+            u'tag:yaml.org,2002:str', value))
+
+    # Make sure all strings are unicode
+    yaml.add_constructor(
+        u'tag:yaml.org,2002:str',
+        lambda loader, node: string_type(loader.construct_scalar(node)))
 
 
 class Store(object):
@@ -135,7 +149,7 @@ def _load(stream):
 
 
 def _write(obj, stream):
-    yaml.dump(obj, stream, default_flow_style=False)
+    yaml.dump(obj, stream, default_flow_style=False, allow_unicode=True)
 
 
 def _lineage(obj):
