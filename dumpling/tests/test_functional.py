@@ -4,7 +4,7 @@ import transaction
 import unittest
 
 from ..compat import string_type
-from ..field import String
+from ..field import Field
 from ..store import Store, folder, model, Folder
 
 
@@ -78,7 +78,7 @@ class FunctionalTests(unittest.TestCase):
 
 @folder
 class Site(object):
-    title = String()
+    title = Field(string_type)
 
     def __init__(self, title=u'Test Site'):
         self.title = title
@@ -86,7 +86,7 @@ class Site(object):
 
 @model
 class Widget(object):
-    name = String()
+    name = Field(string_type)
 
     def __init__(self, name):
         self.name = name

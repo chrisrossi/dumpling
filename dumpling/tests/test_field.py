@@ -3,15 +3,15 @@ import unittest
 
 from ..field import (
     Field,
-    Invalid,
-    String,
 )
 
 
 class TestField(unittest.TestCase):
 
     def make_one(self, *args, **kw):
-        return DummyField(*args, **kw)
+        field = Field(*args, **kw)
+        field.__name__ = 'foo'
+        return field
 
     def test_set_get(self):
         obj = DummyObject()
@@ -44,38 +44,14 @@ class TestField(unittest.TestCase):
     def test_set_none_not_allowed(self):
         obj = DummyObject()
         desc = self.make_one()
-        with self.assertRaises(Invalid):
+        with self.assertRaises(TypeError):
             desc.__set__(obj, None)
 
-    def test_set_no_subclass(self):
-        desc = Field()
-        with self.assertRaises(NotImplementedError):
-            desc.__set__(None, u'foo')
-
-
-class TestString(unittest.TestCase):
-
-    def test_valid(self):
+    def test_set_wrong_type(self):
         obj = DummyObject()
-        desc = String()
-        desc.__name__ = u'foo'
-        desc.__set__(obj, u'bar')
-        self.assertEqual(desc.__get__(obj), u'bar')
-
-    def test_invalid(self):
-        obj = DummyObject()
-        desc = String(default=u'bar')
-        desc.__name__ = u'foo'
-        with self.assertRaises(Invalid):
-            desc.__set__(obj, 2)
-        self.assertEqual(desc.__get__(obj), u'bar')
-
-
-class DummyField(Field):
-    __name__ = u'foo'
-
-    def validate(self, value):
-        assert value is not None
+        desc = self.make_one(int)
+        with self.assertRaises(TypeError):
+            desc.__set__(obj, '1')
 
 
 class DummyObject(object):

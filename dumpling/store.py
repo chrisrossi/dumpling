@@ -11,7 +11,7 @@ from .field import Field
 from .utils import dotted_name
 
 
-if not PY3:
+if not PY3:  #pragma no cover
     # Avoid ugly !!python/unicode tags
     yaml.add_representer(
         string_type,
