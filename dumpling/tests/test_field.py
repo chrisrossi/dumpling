@@ -53,6 +53,20 @@ class TestField(unittest.TestCase):
         with self.assertRaises(TypeError):
             desc.__set__(obj, '1')
 
+    def test_coerce(self):
+        def coerce_int(x):
+            try:
+                return int(x)
+            except ValueError:
+                return x
+
+        obj = DummyObject()
+        desc = self.make_one(int, coerce=coerce_int)
+        desc.__set__(obj, '1')
+        self.assertEqual(desc.__get__(obj), 1)
+        with self.assertRaises(TypeError):
+            desc.__set__(obj, 'foo')
+
 
 class DummyObject(object):
 

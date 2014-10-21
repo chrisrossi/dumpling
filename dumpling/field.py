@@ -7,9 +7,11 @@ class Field(object):
     """
     __name__ = nodefault
 
-    def __init__(self, type=object, default=nodefault, none=False):
+    def __init__(self, type=object, default=nodefault, coerce=None,
+                 none=False):
         self.type = type
         self.default = default
+        self.coerce = coerce
         self.none = none
 
     def __get__(self, obj, type=None):
@@ -25,7 +27,9 @@ class Field(object):
         if value is None:
             if not self.none:
                 raise TypeError(u"None is not allowed.")
-        elif not isinstance(value, self.type):
+        if self.coerce:
+            value = self.coerce(value)
+        if not isinstance(value, self.type):
             raise TypeError(u"Must be of type: {0}".format(self.type.__name__))
         setattr(obj, self.attr, value)
 
