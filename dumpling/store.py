@@ -84,6 +84,9 @@ class Field(object):
         if type(value) is list:
             value = PersistentList(value)
             setattr(obj, self.attr, value)
+        elif type(value) is dict:
+            value = PersistentDict(value)
+            setattr(obj, self.attr, value)
 
         _connect(obj, value)
         return value
@@ -101,6 +104,8 @@ class Field(object):
 
         if type(value) is list:
             value = PersistentList(value)
+        elif type(value) is dict:
+            value = PersistentDict(value)
 
         setattr(obj, self.attr, value)
         _connect(obj, value)
@@ -452,6 +457,54 @@ yaml.add_representer(
     PersistentList,
     lambda dumper, value: dumper.represent_sequence(
         u'tag:yaml.org,2002:seq', value))
+
+
+class PersistentDict(dict):
+    __dumpling__ = _ObjectStateProperty()
+
+    def __connect__(self):
+        _connect(self, *self.values())
+
+    def __setitem__(self, key, value):
+        _connect(self, value)
+        set_dirty(self)
+        return super(PersistentDict, self).__setitem__(key, value)
+
+    def __delitem__(self, key):
+        set_dirty(self)
+        return super(PersistentDict, self).__delitem__(key)
+
+    def clear(self):
+        set_dirty(self)
+        return super(PersistentDict, self).clear()
+
+    def pop(self, key):
+        set_dirty(self)
+        return super(PersistentDict, self).pop(key)
+
+    def popitem(self):
+        set_dirty(self)
+        return super(PersistentDict, self).popitem()
+
+    def setdefault(self, key, value):
+        if key not in self:
+            _connect(self, value)
+            set_dirty(self)
+        return super(PersistentDict, self).setdefault(key, value)
+
+    def update(self, mapping):
+        if hasattr(mapping, 'values'):
+            _connect(self, *mapping.values())
+        else:
+            _connect(self, *(v for k,v in mapping))
+        set_dirty(self)
+        super(PersistentDict, self).update(mapping)
+
+
+yaml.add_representer(
+    PersistentDict,
+    lambda dumper, value: dumper.represent_mapping(
+        u'tag:yaml.org,2002:map', value))
 
 
 def _connect(model, *targets):

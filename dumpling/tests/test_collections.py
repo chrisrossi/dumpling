@@ -108,6 +108,81 @@ class PersistentListTests(unittest.TestCase):
         self.assertDirty(l)
 
 
+class PersistentDictTests(unittest.TestCase):
+
+    def make_one(self, d=()):
+        from dumpling.store import PersistentDict
+        d = PersistentDict(d)
+        self.assertFalse(d.__dumpling__.dirty)
+        return d
+
+    def assertDirty(self, d):
+        self.assertTrue(d.__dumpling__.dirty)
+
+    def assertNotDirty(self, d):
+        self.assertFalse(d.__dumpling__.dirty)
+
+    def test_delitem(self):
+        d = self.make_one({u'a': 1, u'b': 2})
+        del d[u'a']
+        self.assertEqual(d, {u'b': 2})
+        self.assertDirty(d)
+
+    def test_setitem(self):
+        d = self.make_one()
+        d[u'a'] = 1
+        self.assertEqual(d, {u'a': 1})
+        self.assertDirty(d)
+
+    def test_setitem_model(self):
+        d = self.make_one()
+        d[u'a'] = DummyModel()
+        self.assertIs(d[u'a'].top, d)
+
+    def test_clear(self):
+        d = self.make_one({u'a': 1, u'b': 2})
+        d.clear()
+        self.assertEqual(d, {})
+        self.assertDirty(d)
+
+    def test_pop(self):
+        d = self.make_one({u'a': 1, u'b': 2})
+        self.assertEqual(d.pop(u'b'), 2)
+        self.assertEqual(d, {u'a': 1})
+        self.assertDirty(d)
+
+    def test_popitem(self):
+        d = self.make_one({u'a': 1})
+        self.assertEqual(d.popitem(), (u'a', 1))
+        self.assertEqual(d, {})
+        self.assertDirty(d)
+
+    def test_setdefault(self):
+        d = self.make_one({u'a': 1})
+        d.setdefault(u'a', 42)
+        self.assertEqual(d, {u'a': 1})
+        self.assertNotDirty(d)
+        d.setdefault(u'b', 42)
+        self.assertEqual(d, {u'a': 1, u'b': 42})
+        self.assertDirty(d)
+
+    def test_setdefault_model(self):
+        d = self.make_one()
+        d.setdefault(u'a', DummyModel())
+        self.assertIs(d[u'a'].top, d)
+
+    def test_update(self):
+        d = self.make_one({u'a': 1, u'b': 2})
+        d.update({u'b': 42, u'c': 3})
+        self.assertEqual(d, {u'a': 1, u'b': 42, u'c': 3})
+        self.assertDirty(d)
+
+    def test_update_model(self):
+        d = self.make_one()
+        d.update({u'a': DummyModel()})
+        self.assertIs(d[u'a'].top, d)
+
+
 class DummyModel(object):
     top = None
     dirty = False

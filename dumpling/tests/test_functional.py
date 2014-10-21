@@ -132,6 +132,35 @@ class FunctionalTests(unittest.TestCase):
         widget = store.root()[u'widget']
         self.assertEqual(widget.chiclets[1].spin, 42)
 
+    def test_persistent_dict(self):
+        store = self.make_store()
+        root = store.root()
+        root[u'widget'] = widget = Widget(u'Hi Dee Ho!')
+        widget.maclets.update(((u'a', 1), (u'b', 2), (u'c', 3)))
+        transaction.commit()
+
+        widget = store.root()[u'widget']
+        self.assertEqual(widget.maclets[u'b'], 2)
+        widget.maclets[u'b'] = 42
+        transaction.commit()
+
+        widget = store.root()[u'widget']
+        self.assertEqual(widget.maclets[u'b'], 42)
+
+    def test_dict_of_persistent(self):
+        store = self.make_store()
+        root = store.root()
+        root[u'widget'] = widget = Widget(u'Hi Dee Ho!')
+        widget.maclets = {u'a': Sprocket()}
+        transaction.commit()
+
+        widget = store.root()[u'widget']
+        widget.maclets[u'a'].size = 10
+        transaction.commit()
+
+        widget = store.root()[u'widget']
+        self.assertEqual(widget.maclets[u'a'].size, 10)
+
 
 @folder
 class Site(object):
@@ -152,6 +181,7 @@ class Widget(object):
     name = Field(string_type)
     sprocket = Field(Sprocket, default=None, none=True)
     chiclets = Field(list, default=list)
+    maclets = Field(dict, default=dict)
 
     def __init__(self, name):
         self.name = name
