@@ -7,6 +7,8 @@ from .api import (
     set_dirty,
 )
 from .compat import string_type, PY3
+from .field import Field
+from .utils import dotted_name
 
 
 if not PY3:
@@ -20,45 +22,6 @@ if not PY3:
     yaml.add_constructor(
         u'tag:yaml.org,2002:str',
         lambda loader, node: string_type(loader.construct_scalar(node)))
-
-
-class Store(object):
-    _session = None
-
-    """
-    An instance of a Dumpling object store.
-    """
-    def __init__(self, path):
-        self.fs = acidfs.AcidFS(path, name='Dumpling.AcidFS')
-
-    def root(self):
-        """
-        Get the root object for the current transaction in the current thread.
-        Returns `None` for a brand new store.
-        """
-        return self.session.get_root()
-
-    def set_root(self, root):
-        """
-        Sets the root for an uninitialized store.  Raises a `ValueError` if
-        there is already a root object.
-        """
-        self.session.set_root(root)
-
-    def flush(self):
-        """
-        Writes any unsaved data to the underlying `AcidFS` filesystem without
-        committing the transaction.
-        """
-        self.session.flush()
-
-    @property
-    def session(self):
-        session = self._session
-        if not session or session.closed:
-            self._session = session = _Session(self.fs)
-            self.fs._session()   # Make acidfs join transaction
-        return session
 
 
 def set_child(folder, name, obj):
@@ -89,6 +52,125 @@ def get_child(folder, name):
             obj = session.load(entry.path, entry.file, folder, entry.name)
             entry.loaded = obj
         return obj
+
+
+def model(cls):
+    """
+    A class decorator which makes a class into a Dumpling model that can be
+    persisted.
+    """
+    # Initialize fields so they know their names
+    fields = []
+    for name, field in cls.__dict__.items():
+        if isinstance(field, Field):
+            field.__name__ = name
+            fields.append(field)
+
+    # Object state property
+    cls.__dumpling__ = _ObjectStateProperty()
+
+    # Register yaml handlers
+    tag = '!' + dotted_name(cls)
+
+    def representer(dumper, obj):
+        data = {field.__name__: getattr(obj, field.attr)
+                for field in fields if hasattr(obj, field.attr)}
+        return dumper.represent_mapping(tag, data)
+
+    yaml.add_representer(cls, representer)
+
+    def constructor(loader, node):
+        data = loader.construct_mapping(node)
+        obj = cls.__new__(cls)
+        for name, value in data.items():
+            field = getattr(cls, name, None)
+            if field:
+                setattr(obj, field.attr, value)
+        return obj
+
+    yaml.add_constructor(tag, constructor)
+
+    cls.__dumpling_model__ = True
+    cls.__dumpling_folder__ = False
+    return cls
+
+
+def folder(cls):
+    """
+    A class decorator which makes a class into a Dumpling model that can be
+    persisted as a folder containing child objects in the file system.
+    """
+    model(cls)
+
+    def __getitem__(folder, name):
+        item = get_child(folder, name)
+        if item is None:
+            raise KeyError(name)
+        return item
+
+    cls.__dumpling_folder__ = True
+    cls.__getitem__ = __getitem__
+    cls.__setitem__ = set_child
+    return cls
+
+
+class _ObjectState(object):
+    dirty = False
+    folder_contents = None
+
+
+class _ObjectStateProperty(object):
+
+    def __get__(self, obj, type=None):
+        if obj is None:  #pragma no cover
+            return self
+        state = _ObjectState()
+        setattr(obj, '__dumpling__', state)
+        return state
+
+
+@folder
+class Folder(object):
+    pass
+
+
+class Store(object):
+    _session = None
+
+    """
+    An instance of a Dumpling object store.
+    """
+    def __init__(self, path, factory=Folder):
+        self.fs = acidfs.AcidFS(path, name='Dumpling.AcidFS')
+        self.factory = factory
+
+    def root(self):
+        """
+        Gets the root object for the current transaction in the current thread.
+        Calls the factory if the store is uninitialized.
+        """
+        return self.session.get_root(self.factory)
+
+    def set_root(self, root):
+        """
+        Sets the root object.
+        """
+        self.session.set_root(root)
+
+    def flush(self):
+        """
+        Writes any unsaved data to the underlying `AcidFS` filesystem without
+        committing the transaction.
+        """
+        self.session.flush()
+
+    @property
+    def session(self):
+        session = self._session
+        if not session or session.closed:
+            self._session = session = _Session(self.fs)
+            self.fs._session()   # Make acidfs join transaction
+        return session
 
 
 class _FolderEntry(object):
@@ -188,7 +270,7 @@ class _Session(object):
     def close(self):
         self.closed = True
 
-    def get_root(self):
+    def get_root(self, factory):
         root = self.root
         if root is _NotInCache:
             file = '/__index__.yaml'
@@ -199,13 +281,11 @@ class _Session(object):
                     parent=None,
                     name=None)
             else:
-                self.root = root = None
+                root = factory()
+                self.set_root(root)
         return root
 
     def set_root(self, root):
-        prev = self.get_root()
-        if prev:
-            raise ValueError("Root already set.")
         self.root = root
         state = root.__dumpling__
         state.session = self
