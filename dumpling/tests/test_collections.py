@@ -18,11 +18,24 @@ class PersistentListTests(unittest.TestCase):
         self.assertEqual(l, [0, 1, 42, 3, 4])
         self.assertDirty(l)
 
+    def test_setitem_model(self):
+        l = self.make_one(range(5))
+        l.__dumpling__.top = top = DummyModel()
+        l[2] = DummyModel()
+        self.assertIs(l[2].top, top)
+        self.assertTrue(top.dirty)
+
     def test_setlice(self):
         l = self.make_one()
         l[:] = range(5)
         self.assertEqual(l, [0, 1, 2, 3, 4])
         self.assertDirty(l)
+
+    def test_setslice_models(self):
+        l = self.make_one()
+        l[:] = (DummyModel(), DummyModel())
+        self.assertIs(l[0].top, l)
+        self.assertIs(l[1].top, l)
 
     def test_delitem(self):
         l = self.make_one(range(5))
@@ -42,17 +55,33 @@ class PersistentListTests(unittest.TestCase):
         self.assertEqual(l, [42])
         self.assertDirty(l)
 
+    def test_append_model(self):
+        l = self.make_one()
+        l.append(DummyModel())
+        self.assertIs(l[0].top, l)
+
     def test_extend(self):
         l = self.make_one()
         l.extend(range(5))
         self.assertEqual(l, [0, 1, 2, 3, 4])
         self.assertDirty(l)
 
+    def test_extend_models(self):
+        l = self.make_one()
+        l.extend((DummyModel(), DummyModel()))
+        self.assertIs(l[0].top, l)
+        self.assertIs(l[1].top, l)
+
     def test_insert(self):
         l = self.make_one(range(5))
         l.insert(2, 42)
         self.assertEqual(l, [0, 1, 42, 2, 3, 4])
         self.assertDirty(l)
+
+    def test_insert_model(self):
+        l = self.make_one(range(5))
+        l.insert(2, DummyModel())
+        self.assertIs(l[2].top, l)
 
     def test_pop(self):
         l = self.make_one(range(5))
@@ -77,3 +106,11 @@ class PersistentListTests(unittest.TestCase):
         l.sort()
         self.assertEqual(l, [0, 1, 2, 3, 4])
         self.assertDirty(l)
+
+
+class DummyModel(object):
+    top = None
+    dirty = False
+
+    def __init__(self):
+       self.__dumpling__ = self

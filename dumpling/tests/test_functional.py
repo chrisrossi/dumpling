@@ -118,6 +118,20 @@ class FunctionalTests(unittest.TestCase):
         widget = store.root()[u'widget']
         self.assertEqual(widget.chiclets[5], 42)
 
+    def test_list_of_persistent(self):
+        store = self.make_store()
+        root = store.root()
+        root[u'widget'] = widget = Widget(u'Hi Dee Ho!')
+        widget.chiclets = [Sprocket(), Sprocket(), Sprocket()]
+        transaction.commit()
+
+        widget = store.root()[u'widget']
+        widget.chiclets[1].spin = 42
+        transaction.commit()
+
+        widget = store.root()[u'widget']
+        self.assertEqual(widget.chiclets[1].spin, 42)
+
 
 @folder
 class Site(object):

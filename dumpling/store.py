@@ -1,5 +1,4 @@
 import acidfs
-import functools
 import transaction
 import yaml
 
@@ -86,11 +85,7 @@ class Field(object):
             value = PersistentList(value)
             setattr(obj, self.attr, value)
 
-        state = getattr(value, '__dumpling__', None)
-        if state:
-            # Value is another persistent object
-            state.top = getattr(obj.__dumpling__, 'top', obj)
-
+        _connect(obj, value)
         return value
 
     def __set__(self, obj, value):
@@ -105,15 +100,10 @@ class Field(object):
                     self.type.__name__))
 
         if type(value) is list:
-            value = PersistentList(list)
+            value = PersistentList(value)
 
         setattr(obj, self.attr, value)
-
-        state = getattr(value, '__dumpling__', None)
-        if state:
-            # Value is another persistent object
-            state.top = getattr(obj.__dumpling__, 'top', obj)
-
+        _connect(obj, value)
         set_dirty(obj)
 
     @property
@@ -403,10 +393,15 @@ class PersistentList(list):
     __dumpling__ = _ObjectStateProperty()
 
     def __setslice__(self, start, end, seq):
+        _connect(self, *seq)
         set_dirty(self)
         return super(PersistentList, self).__setslice__(start, end, seq)
 
     def __setitem__(self, index, value):
+        if isinstance(index, slice):  # pragma no cover
+            _connect(self, *value)    # PY3
+        else:
+            _connect(self, value)
         set_dirty(self)
         return super(PersistentList, self).__setitem__(index, value)
 
@@ -419,14 +414,17 @@ class PersistentList(list):
         return super(PersistentList, self).__delslice__(start, end)
 
     def append(self, item):
+        _connect(self, item)
         set_dirty(self)
         return super(PersistentList, self).append(item)
 
     def extend(self, seq):
+        _connect(self, *seq)
         set_dirty(self)
         return super(PersistentList, self).extend(seq)
 
     def insert(self, index, value):
+        _connect(self, value)
         set_dirty(self)
         return super(PersistentList, self).insert(index, value)
 
@@ -446,8 +444,22 @@ class PersistentList(list):
         set_dirty(self)
         return super(PersistentList, self).sort(*args, **kw)
 
+    def __connect__(self):
+        _connect(self, *self)
+
 
 yaml.add_representer(
     PersistentList,
     lambda dumper, value: dumper.represent_sequence(
         u'tag:yaml.org,2002:seq', value))
+
+
+def _connect(model, *targets):
+    top = getattr(model.__dumpling__, 'top', model)
+    for target in targets:
+        state = getattr(target, '__dumpling__', None)
+        if state:
+            state.top = top
+            connect = getattr(target, '__connect__', None)
+            if connect:
+                connect()
