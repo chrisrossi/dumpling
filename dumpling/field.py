@@ -23,6 +23,12 @@ class Field(object):
         value = getattr(obj, self.attr, self.default)
         if value is nodefault:
             raise AttributeError(self.__name__)
+
+        state = getattr(value, '__dumpling__', None)
+        if state:
+            # Value is another persistent object
+            state.top = getattr(obj.__dumpling__, 'top', obj)
+
         return value
 
     def __set__(self, obj, value):
@@ -36,6 +42,12 @@ class Field(object):
                 raise TypeError(u"Must be of type: {0}".format(
                     self.type.__name__))
         setattr(obj, self.attr, value)
+
+        state = getattr(value, '__dumpling__', None)
+        if state:
+            # Value is another persistent object
+            state.top = getattr(obj.__dumpling__, 'top', obj)
+
         set_dirty(obj)
 
     @property

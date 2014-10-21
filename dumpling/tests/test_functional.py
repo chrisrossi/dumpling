@@ -86,6 +86,24 @@ class FunctionalTests(unittest.TestCase):
 
         self.assertEqual(store.root()[u'widget'].name, u'Fred')
 
+    def test_nested_structures(self):
+        store = self.make_store()
+        root = store.root()
+        root[u'widget'] = widget = Widget(u'Widget')
+        widget.sprocket = Sprocket()
+        widget.sprocket.spin = 3
+        transaction.commit()
+
+        sprocket = store.root()[u'widget'].sprocket
+        self.assertEqual(sprocket.size, 5)
+        self.assertEqual(sprocket.spin, 3)
+        sprocket.size = 4
+        transaction.commit()
+
+        sprocket = store.root()[u'widget'].sprocket
+        self.assertEqual(sprocket.size, 4)
+        self.assertEqual(sprocket.spin, 3)
+
 
 @folder
 class Site(object):
@@ -96,8 +114,15 @@ class Site(object):
 
 
 @model
+class Sprocket(object):
+    size = Field(int, default=5)
+    spin = Field(int, default=2)
+
+
+@model
 class Widget(object):
     name = Field(string_type)
+    sprocket = Field(Sprocket, default=None, none=True)
 
     def __init__(self, name):
         self.name = name
