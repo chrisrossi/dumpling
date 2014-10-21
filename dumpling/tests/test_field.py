@@ -1,10 +1,6 @@
 import unittest
 
-
-from ..field import (
-    Field,
-)
-from ..store import model
+from ..store import Field, model
 
 
 class TestField(unittest.TestCase):

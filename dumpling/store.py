@@ -1,4 +1,5 @@
 import acidfs
+import functools
 import transaction
 import yaml
 
@@ -7,8 +8,9 @@ from .api import (
     set_dirty,
 )
 from .compat import string_type, PY3
-from .field import Field
 from .utils import dotted_name
+
+nodefault = object()
 
 
 if not PY3:  #pragma no cover
@@ -52,6 +54,76 @@ def get_child(folder, name):
             obj = session.load(entry.path, entry.file, folder, entry.name)
             entry.loaded = obj
         return obj
+
+
+class Field(object):
+    """
+    Descriptor for fields.
+    """
+    __name__ = nodefault
+
+    def __init__(self, type=object, default=nodefault, coerce=None,
+                 none=False):
+        self.type = type
+        self.default = default
+        self.coerce = coerce
+        self.none = none
+
+    def __get__(self, obj, objtype=None):
+        if obj is None:
+            return self
+
+        value = getattr(obj, self.attr, nodefault)
+        if value is nodefault:
+            value = self.default
+            if value is nodefault:
+                raise AttributeError(self.__name__)
+            elif callable(value):
+                value = value()
+            setattr(obj, self.attr, value)
+
+        if type(value) is list:
+            value = PersistentList(value)
+            setattr(obj, self.attr, value)
+
+        state = getattr(value, '__dumpling__', None)
+        if state:
+            # Value is another persistent object
+            state.top = getattr(obj.__dumpling__, 'top', obj)
+
+        return value
+
+    def __set__(self, obj, value):
+        if value is None:
+            if not self.none:
+                raise TypeError(u"None is not allowed.")
+        else:
+            if self.coerce:
+                value = self.coerce(value)
+            if not isinstance(value, self.type):
+                raise TypeError(u"Must be of type: {0}".format(
+                    self.type.__name__))
+
+        if type(value) is list:
+            value = PersistentList(list)
+
+        setattr(obj, self.attr, value)
+
+        state = getattr(value, '__dumpling__', None)
+        if state:
+            # Value is another persistent object
+            state.top = getattr(obj.__dumpling__, 'top', obj)
+
+        set_dirty(obj)
+
+    @property
+    def attr(self):
+        name = self.__name__
+        if name is nodefault:
+            raise ValueError(
+                u"Object is not a model. Maybe you forget the @model or "
+                u"@folder decorator on your class.")
+        return u'.' + name
 
 
 def model(cls):
@@ -319,9 +391,63 @@ def _save(fs, obj):
         _write(obj, stream)
     set_dirty(obj, False)
 
-    # XXX better to distinguish between folder whose contents have changed
-    #     versus folder whose attributes have changed
+    # XXX would be better to distinguish between folder whose contents have
+    #     changed versus folder whose attributes have changed
     if obj.__dumpling_folder__:
         for entry in _folder_contents(obj).values():
             if entry.loaded and is_dirty(entry.loaded):
                 _save(fs, entry.loaded)
+
+
+class PersistentList(list):
+    __dumpling__ = _ObjectStateProperty()
+
+    def __setslice__(self, start, end, seq):
+        set_dirty(self)
+        return super(PersistentList, self).__setslice__(start, end, seq)
+
+    def __setitem__(self, index, value):
+        set_dirty(self)
+        return super(PersistentList, self).__setitem__(index, value)
+
+    def __delitem__(self, index):
+        set_dirty(self)
+        return super(PersistentList, self).__delitem__(index)
+
+    def __delslice__(self, start, end):
+        set_dirty(self)
+        return super(PersistentList, self).__delslice__(start, end)
+
+    def append(self, item):
+        set_dirty(self)
+        return super(PersistentList, self).append(item)
+
+    def extend(self, seq):
+        set_dirty(self)
+        return super(PersistentList, self).extend(seq)
+
+    def insert(self, index, value):
+        set_dirty(self)
+        return super(PersistentList, self).insert(index, value)
+
+    def pop(self, index):
+        set_dirty(self)
+        return super(PersistentList, self).pop(index)
+
+    def remove(self, value):
+        set_dirty(self)
+        return super(PersistentList, self).remove(value)
+
+    def reverse(self):
+        set_dirty(self)
+        return super(PersistentList, self).reverse()
+
+    def sort(self, *args, **kw):
+        set_dirty(self)
+        return super(PersistentList, self).sort(*args, **kw)
+
+
+yaml.add_representer(
+    PersistentList,
+    lambda dumper, value: dumper.represent_sequence(
+        u'tag:yaml.org,2002:seq', value))

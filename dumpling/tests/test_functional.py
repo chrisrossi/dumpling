@@ -4,8 +4,7 @@ import transaction
 import unittest
 
 from ..compat import string_type
-from ..field import Field
-from ..store import Store, folder, model, Folder
+from ..store import Store, folder, model, Folder, Field
 
 
 class FunctionalTests(unittest.TestCase):
@@ -104,6 +103,21 @@ class FunctionalTests(unittest.TestCase):
         self.assertEqual(sprocket.size, 4)
         self.assertEqual(sprocket.spin, 3)
 
+    def test_persistent_list(self):
+        store = self.make_store()
+        root = store.root()
+        root[u'widget'] = widget = Widget(u'Hi Dee Ho!')
+        widget.chiclets[:] = range(10)
+        transaction.commit()
+
+        widget = store.root()[u'widget']
+        self.assertEqual(widget.chiclets, list(range(10)))
+        widget.chiclets[5] = 42
+        transaction.commit()
+
+        widget = store.root()[u'widget']
+        self.assertEqual(widget.chiclets[5], 42)
+
 
 @folder
 class Site(object):
@@ -123,6 +137,7 @@ class Sprocket(object):
 class Widget(object):
     name = Field(string_type)
     sprocket = Field(Sprocket, default=None, none=True)
+    chiclets = Field(list, default=list)
 
     def __init__(self, name):
         self.name = name
