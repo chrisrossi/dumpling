@@ -71,9 +71,20 @@ class FunctionalTests(unittest.TestCase):
         from dumpling.store import get_child
         store = self.make_store()
         root = store.root()
-        self.assertEqual(get_child(root, 'foo'), None)
+        self.assertEqual(get_child(root, u'foo'), None)
         with self.assertRaises(KeyError):
-            root['foo']
+            root[u'foo']
+
+    def test_changes_persist(self):
+        store = self.make_store()
+        root = store.root()
+        root[u'widget'] = Widget(u'Hi Dee Ho!')
+        transaction.commit()
+
+        store.root()[u'widget'].name = u'Fred'
+        transaction.commit()
+
+        self.assertEqual(store.root()[u'widget'].name, u'Fred')
 
 
 @folder

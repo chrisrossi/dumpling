@@ -1,5 +1,7 @@
 nodefault = object()
 
+from .api import set_dirty
+
 
 class Field(object):
     """
@@ -27,11 +29,14 @@ class Field(object):
         if value is None:
             if not self.none:
                 raise TypeError(u"None is not allowed.")
-        if self.coerce:
-            value = self.coerce(value)
-        if not isinstance(value, self.type):
-            raise TypeError(u"Must be of type: {0}".format(self.type.__name__))
+        else:
+            if self.coerce:
+                value = self.coerce(value)
+            if not isinstance(value, self.type):
+                raise TypeError(u"Must be of type: {0}".format(
+                    self.type.__name__))
         setattr(obj, self.attr, value)
+        set_dirty(obj)
 
     @property
     def attr(self):

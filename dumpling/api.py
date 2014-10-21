@@ -5,4 +5,4 @@ def is_dirty(obj):
 def set_dirty(obj, dirty=True):
     while obj is not None:
         obj.__dumpling__.dirty = dirty
-        obj = obj.__parent__
+        obj = getattr(obj, '__parent__', None)

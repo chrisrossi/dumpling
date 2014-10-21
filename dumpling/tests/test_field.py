@@ -4,26 +4,20 @@ import unittest
 from ..field import (
     Field,
 )
+from ..store import model
 
 
 class TestField(unittest.TestCase):
 
-    def make_one(self, *args, **kw):
-        field = Field(*args, **kw)
-        field.__name__ = 'foo'
-        return field
-
     def test_set_get(self):
         obj = DummyObject()
-        desc = self.make_one()
-        desc.__set__(obj, u'bar')
-        self.assertEqual(desc.__get__(obj), u'bar')
+        obj.foo = u'bar'
+        self.assertEqual(obj.foo, u'bar')
 
     def test_get_notset(self):
         obj = DummyObject()
-        desc = self.make_one()
         with self.assertRaises(AttributeError):
-            desc.__get__(obj)
+            obj.foo
 
     def test_get_nomodel(self):
         desc = Field()
@@ -32,43 +26,43 @@ class TestField(unittest.TestCase):
 
     def test_get_default(self):
         obj = DummyObject()
-        desc = self.make_one(default=u'bar')
-        self.assertEqual(desc.__get__(obj), u'bar')
+        self.assertEqual(obj.bar, 42)
 
     def test_set_none_allowed(self):
         obj = DummyObject()
-        desc = self.make_one(none=True)
-        desc.__set__(obj, None)
-        self.assertEqual(desc.__get__(obj), None)
+        obj.bar = None
+        self.assertEqual(obj.bar, None)
 
     def test_set_none_not_allowed(self):
         obj = DummyObject()
-        desc = self.make_one()
         with self.assertRaises(TypeError):
-            desc.__set__(obj, None)
+            obj.foo = None
 
     def test_set_wrong_type(self):
         obj = DummyObject()
-        desc = self.make_one(int)
         with self.assertRaises(TypeError):
-            desc.__set__(obj, '1')
+            obj.bar = '1'
 
     def test_coerce(self):
-        def coerce_int(x):
-            try:
-                return int(x)
-            except ValueError:
-                return x
-
         obj = DummyObject()
-        desc = self.make_one(int, coerce=coerce_int)
-        desc.__set__(obj, '1')
-        self.assertEqual(desc.__get__(obj), 1)
+        obj.baz = '1'
+        self.assertEqual(obj.baz, 1)
         with self.assertRaises(TypeError):
-            desc.__set__(obj, 'foo')
+            obj.baz = 'foo'
 
 
+def coerce_int(x):
+    try:
+        return int(x)
+    except ValueError:
+        return x
+
+
+@model
 class DummyObject(object):
+    foo = Field()
+    bar = Field(int, default=42, none=True)
+    baz = Field(int, coerce=coerce_int)
 
     def __init__(self, **kw):
         self.__dict__.update(kw)
