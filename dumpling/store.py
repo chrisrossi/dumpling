@@ -2,10 +2,6 @@ import acidfs
 import transaction
 import yaml
 
-from .api import (
-    is_dirty,
-    set_dirty,
-)
 from .compat import string_type, PY3
 from .utils import dotted_name
 
@@ -183,6 +179,7 @@ def folder(cls):
 
 class _ObjectState(object):
     dirty = False
+    dirty_children = False
     folder_contents = None
 
 
@@ -322,8 +319,10 @@ class _Session(object):
         self.flush()
 
     def flush(self):
-        if self.root and is_dirty(self.root):
-            _save(self.fs, self.root)
+        if self.root:
+            state = self.root.__dumpling__
+            if state.dirty or state.dirty_children:
+                _save(self.fs, self.root)
 
     def tpc_finish(self, tx):
         """
@@ -380,18 +379,19 @@ def _write(obj, stream):
 
 def _save(fs, obj):
     state = obj.__dumpling__
-    if not fs.exists(state.path):
-        fs.mkdir(state.path)
-    with fs.open(state.file, 'w') as stream:
-        _write(obj, stream)
-    set_dirty(obj, False)
+    if state.dirty:
+        if not fs.exists(state.path):
+            fs.mkdir(state.path)
+        with fs.open(state.file, 'w') as stream:
+            _write(obj, stream)
+        set_clean(obj)
 
-    # XXX would be better to distinguish between folder whose contents have
-    #     changed versus folder whose attributes have changed
     if obj.__dumpling_folder__:
         for entry in _folder_contents(obj).values():
-            if entry.loaded and is_dirty(entry.loaded):
-                _save(fs, entry.loaded)
+            if entry.loaded:
+                child_state = entry.loaded.__dumpling__
+                if child_state.dirty or child_state.dirty_children:
+                    _save(fs, entry.loaded)
 
 
 class PersistentList(list):
@@ -516,3 +516,21 @@ def _connect(model, *targets):
             connect = getattr(target, '__connect__', None)
             if connect:
                 connect()
+
+
+def set_dirty(obj):
+    obj = getattr(obj.__dumpling__, 'top', obj)
+    obj.__dumpling__.dirty = True
+    folder = getattr(obj, '__parent__', None)
+    if folder:
+        set_folder_dirty(folder)
+
+
+def set_folder_dirty(folder):
+    while folder is not None:
+        folder.__dumpling__.dirty_children = True
+        folder = getattr(folder, '__parent__', None)
+
+
+def set_clean(obj):
+    obj.__dumpling__.dirty = False
