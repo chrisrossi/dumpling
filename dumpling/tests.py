@@ -8,7 +8,7 @@ from . import string_type
 from . import Store, folder, model, Folder, Field
 
 
-class TestField(unittest.TestCase):
+class FieldTests(unittest.TestCase):
 
     def test_set_get(self):
         obj = DummyObject()
