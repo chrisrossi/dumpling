@@ -1,4 +1,3 @@
-import acidfs
 import sys
 import transaction
 import yaml
@@ -10,8 +9,10 @@ class Store(object):
     """
     An instance of a Dumpling object store.
     """
-    def __init__(self, path, factory=None):
-        self.fs = acidfs.AcidFS(path, name='Dumpling.AcidFS')
+    def __init__(self, fs, factory=None):
+        # Make sure dumpling comes before acidfs during transaction commit.
+        fs.name = 'Dumpling.AcidFS'
+        self.fs = fs
         if factory is None:
             factory = Folder
         self.factory = factory

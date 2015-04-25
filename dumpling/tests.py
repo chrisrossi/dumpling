@@ -269,7 +269,8 @@ class FunctionalTests(unittest.TestCase):
        shutil.rmtree(self.tmp)
 
     def make_store(self, **kw):
-        return Store(self.tmp, **kw)
+        from acidfs import AcidFS
+        return Store(AcidFS(self.tmp), **kw)
 
     def test_default_factory(self):
         store = self.make_store()
