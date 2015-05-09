@@ -2,6 +2,8 @@ import sys
 import transaction
 import yaml
 
+strtype = str  # XXX py3 only, need py2 too
+
 
 class Store(object):
     _session = None
@@ -9,13 +11,17 @@ class Store(object):
     """
     An instance of a Dumpling object store.
     """
-    def __init__(self, fs, factory=None):
+    def __init__(self, fs, factory=None, blobstore=None):
         # Make sure dumpling comes before acidfs during transaction commit.
         fs.name = 'Dumpling.AcidFS'
         self.fs = fs
         if factory is None:
             factory = Folder
         self.factory = factory
+        if isinstance(blobstore, strtype):
+            from .blob import FileSystemBlobStore  # avoid circular import
+            blobstore = FileSystemBlobStore(blobstore)
+        self.blobstore = blobstore
 
     def root(self):
         """
@@ -41,7 +47,7 @@ class Store(object):
     def session(self):
         session = self._session
         if not session or session.closed:
-            self._session = session = _Session(self.fs)
+            self._session = session = _Session(self)
             self.fs._session()   # Make acidfs join transaction
         return session
 
@@ -219,6 +225,12 @@ def get_child(folder, name):
         return obj
 
 
+def _session_for(obj):
+    state = obj.__dumpling__
+    top = getattr(state, 'top', obj)
+    return top.__dumpling__.session
+
+
 class _FolderEntry(object):
 
     def __init__(self, parent, name, is_folder, loaded=None):
@@ -272,8 +284,9 @@ class _Session(object):
     closed = False
     root = _NotInCache
 
-    def __init__(self, fs):
-        self.fs = fs
+    def __init__(self, store):
+        self.store = store
+        self.fs = store.fs
         transaction.get().join(self)
 
     def abort(self, tx):
