@@ -175,9 +175,15 @@ def folder(cls):
             raise KeyError(name)
         return item
 
+    def keys(folder):
+        contents = _folder_contents(folder)
+        sort_key = getattr(folder, 'sort_key', _identity)
+        return sorted(contents.keys(), key=sort_key)
+
     cls.__dumpling_folder__ = True
     cls.__getitem__ = __getitem__
     cls.__setitem__ = set_child
+    cls.keys = keys
     return cls
 
 
@@ -524,6 +530,10 @@ def _connect(model, *targets):
             connect = getattr(target, '__connect__', None)
             if connect:
                 connect()
+
+
+def _identity(x):
+    return x
 
 
 PY3 = sys.version_info[0] == 3
