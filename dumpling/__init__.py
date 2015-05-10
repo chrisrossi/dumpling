@@ -180,10 +180,18 @@ def folder(cls):
         sort_key = getattr(folder, 'sort_key', _identity)
         return sorted(contents.keys(), key=sort_key)
 
+    def __iter__(folder):
+        return iter(folder.keys())
+
+    def values(folder):
+        return (folder[key] for key in folder.keys())
+
     cls.__dumpling_folder__ = True
     cls.__getitem__ = __getitem__
     cls.__setitem__ = set_child
     cls.keys = keys
+    cls.__iter__ = __iter__
+    cls.values = values
     return cls
 
 
