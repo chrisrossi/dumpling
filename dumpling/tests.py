@@ -1,5 +1,6 @@
 import unittest
 
+import os
 import shutil
 import tempfile
 import transaction
@@ -270,7 +271,7 @@ class FunctionalTests(unittest.TestCase):
 
     def make_store(self, **kw):
         from acidfs import AcidFS
-        return Store(AcidFS(self.tmp), **kw)
+        return Store(AcidFS(os.path.join(self.tmp, 'store')), **kw)
 
     def test_default_factory(self):
         store = self.make_store()
@@ -413,6 +414,45 @@ class FunctionalTests(unittest.TestCase):
 
         widget = store.root()[u'widget']
         self.assertEqual(widget.maclets[u'a'].size, 10)
+
+    def test_blob_no_blobstorage(self):
+        from .blob import Blob, ConfigurationError
+        store = self.make_store()
+        root = store.root()
+        root['blob'] = blob = Blob()
+        with self.assertRaises(ConfigurationError):
+            blob.open('w')
+
+    def test_blob_write_read(self):
+        from .blob import Blob
+        store = self.make_store(blobstore=os.path.join(self.tmp, 'blobs'))
+        root = store.root()
+        root['blob'] = Blob()
+        root['blob'].open('w').write(b'Hi Mom!')
+        transaction.commit()
+
+        self.assertEqual(root['blob'].open().read(), b'Hi Mom!')
+
+    def test_blob_write_from(self):
+        from .blob import Blob
+        testfile = os.path.join(self.tmp, 'testing')
+        open(testfile, 'wb').write(b'Hi Mom!')
+        store = self.make_store(blobstore=os.path.join(self.tmp, 'blobs'))
+        root = store.root()
+        root['blob'] = Blob()
+        root['blob'].write_from(open(testfile, 'rb'))
+        transaction.commit()
+
+        self.assertEqual(root['blob'].open().read(), b'Hi Mom!')
+
+    def test_blob_bad_mode(self):
+        from .blob import Blob
+        store = self.make_store(blobstore=os.path.join(self.tmp, 'blobs'))
+        root = store.root()
+        root['blob'] = blob = Blob()
+        with self.assertRaises(ValueError):
+            blob.open('wt')
+
 
 
 @folder
