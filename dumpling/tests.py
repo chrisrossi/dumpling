@@ -553,6 +553,41 @@ class FunctionalTests(unittest.TestCase):
         self.assertTrue('bar' not in root['foo'])
         self.assertFalse(store.fs.exists('/foo/bar/baz'))
 
+    def test_assemble_detached_folder(self):
+        store = self.make_store()
+        root = store.root()
+        bar = Site()
+        bar['baz'] = Sprocket(size=10)
+        root['bar'] = bar
+        transaction.commit()
+
+        root = store.root()
+        self.assertTrue('baz' in root['bar'])
+        self.assertEqual(root['bar']['baz'].size, 10)
+
+    """
+    def test_folder_replace_subfolder(self):
+        store = self.make_store()
+        root = store.root()
+        root['foo'] = Site()
+        root['foo']['bar'] = Site()
+        root['foo']['bar']['baz'] = Sprocket()
+        transaction.commit()
+
+        root = store.root()
+        newfolder = Site()
+        newfolder['beez'] = Sprocket()
+        root['foo']['bar'] = newfolder
+        self.assertTrue('beez' in root['foo']['bar'])
+        self.assertTrue('baz' not in root['foo']['bar'])
+        transaction.commit()
+
+        root = store.root()
+        self.assertTrue('beez' in root['foo']['bar'])
+        self.assertTrue('baz' not in root['foo']['bar'])
+        self.assertFalse(store.fs.exists('/foo/bar/baz'))
+        """
+
 
 @folder
 class Site(object):

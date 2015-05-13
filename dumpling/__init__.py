@@ -222,21 +222,34 @@ def set_folder_dirty(folder):
 
 
 def set_child(folder, name, obj):
-    session = folder.__dumpling__.session
-    state = obj.__dumpling__
-    entry = _FolderEntry(folder, name, obj.__dumpling_folder__, obj)
+    entry = _FolderEntry(name, obj.__dumpling_folder__, obj)
 
     obj.__parent__ = folder
     obj.__name__ = name
+    contents = _folder_contents(folder)
+    contents[name] = entry
+
+    if folder.__dumpling__.session is not _detached:
+        _attach(folder, entry)
+
+    folder.__dumpling__.dirty_children = True
+
+
+def _attach(parent, entry):
+    entry.set_parent(parent)
+    session = parent.__dumpling__.session
+
+    obj = entry.loaded
+    state = obj.__dumpling__
     state.session = session
     state.path = entry.path
     state.file = entry.file
-    if obj.__dumpling_folder__:
-        state.folder_contents = {}
+    state.dirty = True
 
-    contents = _folder_contents(folder)
-    contents[name] = entry
-    set_dirty(obj)
+    if entry.is_folder:
+        state.dirty_children = True
+        for child_entry in _folder_contents(obj).values():
+            _attach(obj, child_entry)
 
 
 def get_child(folder, name):
@@ -273,16 +286,20 @@ def _session_for(obj):
 class _FolderEntry(object):
     deleted = False
 
-    def __init__(self, parent, name, is_folder, loaded=None):
+    def __init__(self, name, is_folder, loaded=None, parent=None):
         self.name = name
         self.is_folder = is_folder
         self.loaded = loaded
+        if parent:
+            self.set_parent(parent)
+
+    def set_parent(self, parent):
         parent_path = parent.__dumpling__.path
         if parent_path == '/':
             parent_path = ''
         self.path = path = '{0}/{1}'.format(
             parent_path, self.name)
-        if is_folder:
+        if self.is_folder:
             self.file = path + '/__index__.yaml'
         else:
             self.file = path + '.yaml'
@@ -290,21 +307,25 @@ class _FolderEntry(object):
 
 def _folder_contents(folder):
     state = folder.__dumpling__
-    fs = state.session.fs
     contents = state.folder_contents
     if contents is None:
         contents = {}
-        for fname in fs.listdir(state.path):
-            fpath = '{0}/{1}'.format(state.path, fname)
-            if fname.endswith('.yaml'):
-                name = fname[:-5]
-                if name == '__index__':
-                    continue
-                contents[name] = _FolderEntry(folder, name, False)
-            elif fs.isdir(fpath):
-                fpath += '/__index__.yaml'
-                if fs.exists(fpath):
-                    contents[fname] = _FolderEntry(folder, fname, True)
+        if state.session is not _detached:
+            fs = state.session.fs
+            if fs.exists(state.path):
+                for fname in fs.listdir(state.path):
+                    fpath = '{0}/{1}'.format(state.path, fname)
+                    if fname.endswith('.yaml'):
+                        name = fname[:-5]
+                        if name == '__index__':
+                            continue
+                        contents[name] = _FolderEntry(
+                            name, False, parent=folder)
+                    elif fs.isdir(fpath):
+                        fpath += '/__index__.yaml'
+                        if fs.exists(fpath):
+                            contents[fname] = _FolderEntry(
+                                fname, True, parent=folder)
         state.folder_contents = contents
     return contents
 
@@ -431,10 +452,14 @@ def _save(fs, obj):
                     _save(fs, entry.loaded)
 
 
+_detached = object()
+
+
 class _ObjectState(object):
     dirty = False
     dirty_children = False
     folder_contents = None
+    session = _detached
 
 
 class _ObjectStateProperty(object):
