@@ -176,9 +176,11 @@ def folder(cls):
         return item
 
     def keys(folder):
-        contents = _folder_contents(folder)
-        sort_key = getattr(folder, 'sort_key', _identity)
-        return sorted(contents.keys(), key=sort_key)
+        keys = _folder_contents(folder).keys()
+        sort_key = getattr(folder, 'sort_key', None)
+        if sort_key:
+            keys = sorted(keys, key=sort_key)
+        return keys
 
     def __iter__(folder):
         return iter(folder.keys())
@@ -186,11 +188,21 @@ def folder(cls):
     def values(folder):
         return (folder[key] for key in folder.keys())
 
+    def items(folder):
+        return ((key, folder[key]) for key in folder.keys())
+
+    def __delitem__(folder, key):
+        delete_child(folder, key)
+
+    cls.__contains__ = has_child
+    cls.__delitem__ = __delitem__
     cls.__dumpling_folder__ = True
     cls.__getitem__ = __getitem__
-    cls.__setitem__ = set_child
-    cls.keys = keys
+    cls.has_key = has_child
+    cls.items = items
     cls.__iter__ = __iter__
+    cls.keys = keys
+    cls.__setitem__ = set_child
     cls.values = values
     return cls
 
@@ -230,13 +242,26 @@ def set_child(folder, name, obj):
 def get_child(folder, name):
     contents = _folder_contents(folder)
     entry = contents.get(name)
-    if entry:
+    if entry and not entry.deleted:
         obj = entry.loaded
         if obj is None:
             session = folder.__dumpling__.session
             obj = session.load(entry.path, entry.file, folder, entry.name)
             entry.loaded = obj
         return obj
+
+
+def has_child(folder, name):
+    contents = _folder_contents(folder)
+    entry = contents.get(name)
+    return entry and not entry.deleted
+
+
+def delete_child(folder, name):
+    contents = _folder_contents(folder)
+    entry = contents[name]
+    entry.deleted = True
+    set_folder_dirty(folder)
 
 
 def _session_for(obj):
@@ -246,6 +271,7 @@ def _session_for(obj):
 
 
 class _FolderEntry(object):
+    deleted = False
 
     def __init__(self, parent, name, is_folder, loaded=None):
         self.name = name
@@ -394,7 +420,12 @@ def _save(fs, obj):
 
     if obj.__dumpling_folder__:
         for entry in _folder_contents(obj).values():
-            if entry.loaded:
+            if entry.deleted:
+                if entry.is_folder:
+                    fs.rmtree(entry.path)
+                else:
+                    fs.rm(entry.file)
+            elif entry.loaded:
                 child_state = entry.loaded.__dumpling__
                 if child_state.dirty or child_state.dirty_children:
                     _save(fs, entry.loaded)
@@ -538,10 +569,6 @@ def _connect(model, *targets):
             connect = getattr(target, '__connect__', None)
             if connect:
                 connect()
-
-
-def _identity(x):
-    return x
 
 
 PY3 = sys.version_info[0] == 3

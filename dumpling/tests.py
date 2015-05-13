@@ -453,6 +453,105 @@ class FunctionalTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             blob.open('wt')
 
+    def test_folder_keys(self):
+        store = self.make_store()
+        root = store.root()
+        for i in range(8, 13):
+            root['{0:d}'.format(i)] = Sprocket()
+        self.assertEqual(set(root.keys()),
+                         set(('8', '9', '10', '11', '12')))
+
+    def test_folder_keys_sorted(self):
+        store = self.make_store()
+        root = store.root()
+        root.sort_key = lambda x: x
+        for i in range(8, 13):
+            root['{0:d}'.format(i)] = Sprocket()
+        self.assertEqual(root.keys(), ['10', '11', '12', '8', '9'])
+
+    def test_folder_keys_sorted_int(self):
+        store = self.make_store()
+        root = store.root()
+        root.sort_key = int
+        for i in range(8, 13):
+            root['{0:d}'.format(i)] = Sprocket()
+        self.assertEqual(root.keys(), ['8', '9', '10', '11', '12'])
+
+    def test_folder_iter(self):
+        store = self.make_store()
+        root = store.root()
+        root.sort_key = int
+        for i in range(8, 13):
+            root['{0:d}'.format(i)] = Sprocket()
+        i = iter(root)
+        self.assertEqual(next(i), '8')
+        self.assertEqual(next(i), '9')
+        self.assertEqual(next(i), '10')
+        self.assertEqual(next(i), '11')
+        self.assertEqual(next(i), '12')
+
+    def test_folder_values(self):
+        store = self.make_store()
+        root = store.root()
+        root.sort_key = int
+        for i in range(8, 13):
+            root['{0:d}'.format(i)] = Sprocket(size=i)
+        self.assertEqual(
+            [v.size for v in root.values()],
+            [8, 9, 10, 11, 12])
+
+    def test_folder_items(self):
+        store = self.make_store()
+        root = store.root()
+        root.sort_key = int
+        for i in range(8, 13):
+            root['{0:d}'.format(i)] = Sprocket(size=i)
+        self.assertEqual(
+            [(k, v.size) for k, v in root.items()],
+            [('8', 8), ('9', 9), ('10', 10), ('11', 11), ('12', 12)])
+
+    def test_folder_contains(self):
+        store = self.make_store()
+        root = store.root()
+        root.sort_key = int
+        for i in range(8, 13):
+            root['{0:d}'.format(i)] = Sprocket(size=i)
+        self.assertTrue('10' in root)
+        self.assertTrue(root.has_key('10'))
+        self.assertFalse('1' in root)
+        self.assertFalse(root.has_key('1'))
+
+    def test_folder_delete(self):
+        store = self.make_store()
+        root = store.root()
+        root.sort_key = int
+        for i in range(8, 13):
+            root['{0:d}'.format(i)] = Sprocket(size=i)
+        transaction.commit()
+
+        root = store.root()
+        del root['9']
+        self.assertTrue('9' not in root)
+        transaction.commit()
+
+        self.assertTrue('9' not in store.root())
+
+    def test_folder_delete_subfolder(self):
+        store = self.make_store()
+        root = store.root()
+        root['foo'] = Site()
+        root['foo']['bar'] = Site()
+        root['foo']['bar']['baz'] = Sprocket()
+        transaction.commit()
+
+        root = store.root()
+        del root['foo']['bar']
+        self.assertTrue('bar' not in root['foo'])
+        transaction.commit()
+
+        root = store.root()
+        self.assertTrue('bar' not in root['foo'])
+        self.assertFalse(store.fs.exists('/foo/bar/baz'))
 
 
 @folder
@@ -467,6 +566,10 @@ class Site(object):
 class Sprocket(object):
     size = Field(int, default=5)
     spin = Field(int, default=2)
+
+    def __init__(self, **kw):
+        for k, v in kw.items():
+            setattr(self, k, v)
 
 
 @model
