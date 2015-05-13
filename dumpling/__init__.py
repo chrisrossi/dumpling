@@ -223,17 +223,22 @@ def set_folder_dirty(folder):
 
 def set_child(folder, name, obj):
     entry = _FolderEntry(name, obj.__dumpling_folder__, obj)
+    contents = _folder_contents(folder)
+    old_entry = contents.get(name)
+    if old_entry:
+        if old_entry.replaces:
+            old_entry = old_entry.replaces
+        entry.replaces = old_entry
+        old_entry.deleted = True
 
     obj.__parent__ = folder
     obj.__name__ = name
-    contents = _folder_contents(folder)
     contents[name] = entry
 
     if folder.__dumpling__.session is not _detached:
         _attach(folder, entry)
 
-    folder.__dumpling__.dirty_children = True
-
+    set_dirty(obj)
 
 def _attach(parent, entry):
     entry.set_parent(parent)
@@ -285,6 +290,7 @@ def _session_for(obj):
 
 class _FolderEntry(object):
     deleted = False
+    replaces = None
 
     def __init__(self, name, is_folder, loaded=None, parent=None):
         self.name = name
@@ -440,13 +446,19 @@ def _save(fs, obj):
         obj.__dumpling__.dirty = False
 
     if obj.__dumpling_folder__:
+        def rm(entry):
+            if entry.is_folder:
+                fs.rmtree(entry.path)
+            else:
+                fs.rm(entry.file)
+
         for entry in _folder_contents(obj).values():
             if entry.deleted:
-                if entry.is_folder:
-                    fs.rmtree(entry.path)
-                else:
-                    fs.rm(entry.file)
+                rm(entry)
             elif entry.loaded:
+                if entry.replaces:
+                    prev = entry.replaces
+                    rm(prev)
                 child_state = entry.loaded.__dumpling__
                 if child_state.dirty or child_state.dirty_children:
                     _save(fs, entry.loaded)

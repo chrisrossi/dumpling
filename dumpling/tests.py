@@ -565,7 +565,6 @@ class FunctionalTests(unittest.TestCase):
         self.assertTrue('baz' in root['bar'])
         self.assertEqual(root['bar']['baz'].size, 10)
 
-    """
     def test_folder_replace_subfolder(self):
         store = self.make_store()
         root = store.root()
@@ -586,7 +585,46 @@ class FunctionalTests(unittest.TestCase):
         self.assertTrue('beez' in root['foo']['bar'])
         self.assertTrue('baz' not in root['foo']['bar'])
         self.assertFalse(store.fs.exists('/foo/bar/baz'))
-        """
+
+    def test_folder_replace_subfolder_with_non_folder(self):
+        store = self.make_store()
+        root = store.root()
+        root['foo'] = Site()
+        root['foo']['bar'] = Site()
+        root['foo']['bar']['baz'] = Sprocket()
+        transaction.commit()
+
+        root = store.root()
+        root['foo']['bar'] = Sprocket(size=12)
+        self.assertTrue(root['foo']['bar'].size, 12)
+        transaction.commit()
+
+        root = store.root()
+        self.assertTrue(root['foo']['bar'].size, 12)
+        self.assertFalse(store.fs.exists('/foo/bar/baz'))
+
+    def test_folder_replace_subfolder_fickle(self):
+        store = self.make_store()
+        root = store.root()
+        root['foo'] = Site()
+        root['foo']['bar'] = Site()
+        root['foo']['bar']['baz'] = Sprocket()
+        transaction.commit()
+
+        root = store.root()
+        root['foo']['bar'] = Sprocket(size=12)
+        newfolder = Site()
+        newfolder['beez'] = Sprocket()
+        root['foo']['bar'] = newfolder
+        self.assertTrue('beez' in root['foo']['bar'])
+        self.assertTrue('baz' not in root['foo']['bar'])
+        transaction.commit()
+
+        root = store.root()
+        self.assertTrue('beez' in root['foo']['bar'])
+        self.assertTrue('baz' not in root['foo']['bar'])
+        self.assertFalse(store.fs.exists('/foo/bar/baz'))
+
 
 
 @folder
