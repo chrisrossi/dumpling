@@ -222,6 +222,10 @@ def set_folder_dirty(folder):
 
 
 def set_child(folder, name, obj):
+    state = obj.__dumpling__
+    if state.session is not _detached:
+        raise ValueError()
+
     entry = _FolderEntry(name, obj.__dumpling_folder__, obj)
     contents = _folder_contents(folder)
     old_entry = contents.get(name)
@@ -239,6 +243,7 @@ def set_child(folder, name, obj):
         _attach(folder, entry)
 
     set_dirty(obj)
+
 
 def _attach(parent, entry):
     entry.set_parent(parent)

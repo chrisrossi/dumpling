@@ -625,6 +625,15 @@ class FunctionalTests(unittest.TestCase):
         self.assertTrue('baz' not in root['foo']['bar'])
         self.assertFalse(store.fs.exists('/foo/bar/baz'))
 
+    def test_add_already_attached(self):
+        store = self.make_store()
+        root = store.root()
+        root['foo'] = Site()
+        transaction.commit()
+
+        root = store.root()
+        with self.assertRaises(ValueError):
+            root['bar'] = root['foo']
 
 
 @folder
