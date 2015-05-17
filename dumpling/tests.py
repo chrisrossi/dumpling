@@ -635,6 +635,12 @@ class FunctionalTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             root['bar'] = root['foo']
 
+    def test_add_non_model(self):
+        store = self.make_store()
+        root = store.root()
+        with self.assertRaises(TypeError):
+            root['foo'] = 'bar'
+
 
 @folder
 class Site(object):

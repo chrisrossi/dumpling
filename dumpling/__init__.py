@@ -222,9 +222,15 @@ def set_folder_dirty(folder):
 
 
 def set_child(folder, name, obj):
-    state = obj.__dumpling__
+    state = getattr(obj, '__dumpling__', None)
+    if not state:
+        raise TypeError(
+            '{0} is not a Dumplping model.'.format(type(obj)))
+
     if state.session is not _detached:
-        raise ValueError()
+        raise ValueError(
+            'Attempt to add same object in multiple locations. '
+            'Original path: {0}'.format(state.path))
 
     entry = _FolderEntry(name, obj.__dumpling_folder__, obj)
     contents = _folder_contents(folder)
