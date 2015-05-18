@@ -264,7 +264,6 @@ def _attach(parent, entry):
         state = obj.__dumpling__
         state.session = session
         state.path = entry.path
-        state.file = entry.file
         state.dirty = True
 
         if entry.is_folder:
@@ -280,16 +279,10 @@ def get_child(folder, name):
         obj = entry.loaded
         if obj is None:
             session = folder.__dumpling__.session
-            if entry.detached_from:
-                if entry.is_folder:
-                    file = entry.detached_from + '/__index__.yaml'
-                else:
-                    file = entry.detached_from + '.yaml'
-            else:
-                file = entry.file
-            obj = session.load(entry.path, file, folder, entry.name)
+            path = entry.detached_from if entry.detached_from else entry.path
+            fname = path + ('/__index__.yaml' if entry.is_folder else '.yaml')
+            obj = session.load(entry.path, fname, folder, entry.name)
             obj.__dumpling__.detached_from = entry.detached_from
-            obj.__dumpling__.file = entry.file
             entry.loaded = obj
         return obj
 
@@ -342,12 +335,8 @@ class _FolderEntry(object):
         parent_path = parent.__dumpling__.path
         if parent_path == '/':
             parent_path = ''
-        self.path = path = '{0}/{1}'.format(
+        self.path = '{0}/{1}'.format(
             parent_path, self.name)
-        if self.is_folder:
-            self.file = path + '/__index__.yaml'
-        else:
-            self.file = path + '.yaml'
 
 
 def _folder_contents(folder):
@@ -464,7 +453,6 @@ class _Session(object):
         state = root.__dumpling__
         state.session = self
         state.path = '/'
-        state.file = '/__index__.yaml'
         root.__parent__ = None
         root.__name__ = None
         set_dirty(root)
@@ -474,7 +462,6 @@ class _Session(object):
         state = obj.__dumpling__
         state.session = self
         state.path = path
-        state.file = file
         obj.__parent__ = parent
         obj.__name__ = name
 
@@ -486,7 +473,9 @@ def _save(fs, obj):
     if state.dirty or state.detached_from:
         if not fs.exists(state.path):
             fs.mkdir(state.path)
-        with fs.open(state.file, 'w') as stream:
+        fname = state.path + ('/__index__.yaml'
+                              if obj.__dumpling_folder__ else '.yaml')
+        with fs.open(fname, 'w') as stream:
             yaml.dump(obj, stream, default_flow_style=False,
                       allow_unicode=True)
         obj.__dumpling__.dirty = False
@@ -496,7 +485,7 @@ def _save(fs, obj):
             if entry.is_folder:
                 fs.rmtree(entry.path)
             else:
-                fs.rm(entry.file)
+                fs.rm(entry.path + '.yaml')
 
         for entry in _folder_contents(obj).values():
             if entry.deleted:
