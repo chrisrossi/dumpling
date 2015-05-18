@@ -191,6 +191,11 @@ def folder(cls):
     def items(folder):
         return ((key, folder[key]) for key in folder.keys())
 
+    def pop(folder, name):
+        obj = folder[name]
+        del folder[name]
+        return obj
+
     cls.__contains__ = has_child
     cls.__delitem__ = delete_child
     cls.__dumpling_folder__ = True
@@ -199,6 +204,7 @@ def folder(cls):
     cls.items = items
     cls.__iter__ = __iter__
     cls.keys = keys
+    cls.pop = pop
     cls.__setitem__ = set_child
     cls.values = values
     return cls
@@ -261,10 +267,10 @@ def _attach(parent, entry):
         state.file = entry.file
         state.dirty = True
 
-    if entry.is_folder:
-        state.dirty_children = True
-        for child_entry in _folder_contents(obj).values():
-            _attach(obj, child_entry)
+        if entry.is_folder:
+            state.dirty_children = True
+            for child_entry in _folder_contents(obj).values():
+                _attach(obj, child_entry)
 
 
 def get_child(folder, name):
@@ -274,7 +280,16 @@ def get_child(folder, name):
         obj = entry.loaded
         if obj is None:
             session = folder.__dumpling__.session
-            obj = session.load(entry.path, entry.file, folder, entry.name)
+            if entry.detached_from:
+                if entry.is_folder:
+                    file = entry.detached_from + '/__index__.yaml'
+                else:
+                    file = entry.detached_from + '.yaml'
+            else:
+                file = entry.file
+            obj = session.load(entry.path, file, folder, entry.name)
+            obj.__dumpling__.detached_from = entry.detached_from
+            obj.__dumpling__.file = entry.file
             entry.loaded = obj
         return obj
 
@@ -342,20 +357,27 @@ def _folder_contents(folder):
         contents = {}
         if state.session is not _unattached:
             fs = state.session.fs
-            if fs.exists(state.path):
-                for fname in fs.listdir(state.path):
-                    fpath = '{0}/{1}'.format(state.path, fname)
+            path = (state.detached_from if state.detached_from else state.path)
+            if fs.exists(path):
+                for fname in fs.listdir(path):
+                    fpath = '{0}/{1}'.format(path, fname)
                     if fname.endswith('.yaml'):
                         name = fname[:-5]
                         if name == '__index__':
                             continue
-                        contents[name] = _FolderEntry(
+                        contents[name] = entry = _FolderEntry(
                             name, False, parent=folder)
+                        if state.detached_from:
+                            entry.detached_from = '{0}/{1}'.format(
+                                state.detached_from, name)
                     elif fs.isdir(fpath):
                         fpath += '/__index__.yaml'
                         if fs.exists(fpath):
-                            contents[fname] = _FolderEntry(
+                            contents[fname] = entry = _FolderEntry(
                                 fname, True, parent=folder)
+                            if state.detached_from:
+                                entry.detached_from = '{0}/{1}'.format(
+                                    state.detached_from, fname)
         state.folder_contents = contents
     return contents
 
@@ -461,7 +483,7 @@ class _Session(object):
 
 def _save(fs, obj):
     state = obj.__dumpling__
-    if state.dirty:
+    if state.dirty or state.detached_from:
         if not fs.exists(state.path):
             fs.mkdir(state.path)
         with fs.open(state.file, 'w') as stream:
@@ -484,7 +506,9 @@ def _save(fs, obj):
                     prev = entry.replaces
                     rm(prev)
                 child_state = entry.loaded.__dumpling__
-                if child_state.dirty or child_state.dirty_children:
+                if (child_state.detached_from or
+                    child_state.dirty or
+                    child_state.dirty_children):
                     _save(fs, entry.loaded)
             elif entry.detached_from:
                 if entry.is_folder:

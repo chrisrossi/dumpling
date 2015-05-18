@@ -669,13 +669,17 @@ class FunctionalTests(unittest.TestCase):
         store = self.make_store()
         root = store.root()
         root['foo'] = Site()
+        root['foo']['one'] = Site()
         root['foo']['one']['a'] = Sprocket(size=1)
         root['foo']['one']['b'] = Sprocket(size=2)
+        root['foo']['two'] = Site()
         root['foo']['two']['c'] = Sprocket(size=3)
         root['foo']['two']['d'] = Sprocket(size=4)
         root['bar'] = Site()
+        root['bar']['three'] = Site()
         root['bar']['three']['e'] = Sprocket(size=5)
         root['bar']['three']['f'] = Sprocket(size=6)
+        root['bar']['four'] = Site()
         root['bar']['four']['g'] = Sprocket(size=7)
         root['bar']['four']['h'] = Sprocket(size=8)
         transaction.commit()
@@ -691,6 +695,39 @@ class FunctionalTests(unittest.TestCase):
         self.assertEqual(root['foo']['three']['f'].size, 6)
         self.assertEqual(root['foo']['four']['g'].size, 7)
         self.assertEqual(root['foo']['four']['h'].size, 8)
+
+    def test_move_dirty_subtree_using_pop_add(self):
+        store = self.make_store()
+        root = store.root()
+        root['foo'] = Site()
+        root['foo']['one'] = Site()
+        root['foo']['one']['a'] = Sprocket(size=1)
+        root['foo']['one']['b'] = Sprocket(size=2)
+        root['foo']['two'] = Site()
+        root['foo']['two']['c'] = Sprocket(size=3)
+        root['foo']['two']['d'] = Sprocket(size=4)
+        root['bar'] = Site()
+        root['bar']['three'] = Site()
+        root['bar']['three']['e'] = Sprocket(size=5)
+        root['bar']['three']['f'] = Sprocket(size=6)
+        root['bar']['four'] = Site()
+        root['bar']['four']['g'] = Sprocket(size=7)
+        root['bar']['four']['h'] = Sprocket(size=8)
+        transaction.commit()
+
+        root = store.root()
+        root['bar']['three']['e'].size = 50
+        root['foo'] = root.pop('bar')
+        self.assertEqual(root['foo']['three']['e'].size, 50)
+        self.assertEqual(root['foo']['three']['f'].size, 6)
+        transaction.commit()
+
+        root = store.root()
+        self.assertEqual(root['foo']['three']['e'].size, 50)
+        self.assertEqual(root['foo']['three']['f'].size, 6)
+        self.assertEqual(root['foo']['four']['g'].size, 7)
+        self.assertEqual(root['foo']['four']['h'].size, 8)
+
 
 
 @folder
