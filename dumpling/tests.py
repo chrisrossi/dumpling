@@ -432,6 +432,7 @@ class FunctionalTests(unittest.TestCase):
         transaction.commit()
 
         self.assertEqual(root['blob'].open().read(), b'Hi Mom!')
+        self.assertEqual(len(root['blob']), 7)
 
     def test_blob_write_from(self):
         from .blob import Blob
@@ -640,6 +641,56 @@ class FunctionalTests(unittest.TestCase):
         root = store.root()
         with self.assertRaises(TypeError):
             root['foo'] = 'bar'
+
+    def test_move_subtree_using_del_add(self):
+        store = self.make_store()
+        root = store.root()
+        root['foo'] = Site()
+        root['foo']['a'] = Sprocket(size=1)
+        root['foo']['b'] = Sprocket(size=2)
+        root['bar'] = Site()
+        root['bar']['c'] = Sprocket(size=3)
+        root['bar']['d'] = Sprocket(size=4)
+        transaction.commit()
+
+        root = store.root()
+        bar = root['bar']
+        del root['bar']
+        root['foo'] = bar
+        #self.assertEqual(root['foo']['c'].size, 3)
+        #self.assertEqual(root['foo']['d'].size, 4)
+        transaction.commit()
+
+        root = store.root()
+        self.assertEqual(root['foo']['c'].size, 3)
+        self.assertEqual(root['foo']['d'].size, 4)
+
+    def test_move_subtree_using_pop_add(self):
+        store = self.make_store()
+        root = store.root()
+        root['foo'] = Site()
+        root['foo']['one']['a'] = Sprocket(size=1)
+        root['foo']['one']['b'] = Sprocket(size=2)
+        root['foo']['two']['c'] = Sprocket(size=3)
+        root['foo']['two']['d'] = Sprocket(size=4)
+        root['bar'] = Site()
+        root['bar']['three']['e'] = Sprocket(size=5)
+        root['bar']['three']['f'] = Sprocket(size=6)
+        root['bar']['four']['g'] = Sprocket(size=7)
+        root['bar']['four']['h'] = Sprocket(size=8)
+        transaction.commit()
+
+        root = store.root()
+        root['foo'] = root.pop('bar')
+        self.assertEqual(root['foo']['three']['e'].size, 5)
+        self.assertEqual(root['foo']['three']['f'].size, 6)
+        transaction.commit()
+
+        root = store.root()
+        self.assertEqual(root['foo']['three']['e'].size, 5)
+        self.assertEqual(root['foo']['three']['f'].size, 6)
+        self.assertEqual(root['foo']['four']['g'].size, 7)
+        self.assertEqual(root['foo']['four']['h'].size, 8)
 
 
 @folder

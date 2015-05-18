@@ -74,6 +74,9 @@ class Blob(object):
         blobstore = _blobstore(self)
         return blobstore.sizeof(self._location)
 
+    def __nonzero__(self):
+        return True
+
 
 def _blobstore(obj):
     session = _session_for(obj)

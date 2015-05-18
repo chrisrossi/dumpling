@@ -191,11 +191,8 @@ def folder(cls):
     def items(folder):
         return ((key, folder[key]) for key in folder.keys())
 
-    def __delitem__(folder, key):
-        delete_child(folder, key)
-
     cls.__contains__ = has_child
-    cls.__delitem__ = __delitem__
+    cls.__delitem__ = delete_child
     cls.__dumpling_folder__ = True
     cls.__getitem__ = __getitem__
     cls.has_key = has_child
@@ -227,12 +224,13 @@ def set_child(folder, name, obj):
         raise TypeError(
             '{0} is not a Dumplping model.'.format(type(obj)))
 
-    if state.session is not _detached:
+    if state.session not in (_unattached, _detached):
         raise ValueError(
             'Attempt to add same object in multiple locations. '
             'Original path: {0}'.format(state.path))
 
     entry = _FolderEntry(name, obj.__dumpling_folder__, obj)
+    entry.detached_from = state.detached_from
     contents = _folder_contents(folder)
     old_entry = contents.get(name)
     if old_entry:
@@ -245,7 +243,7 @@ def set_child(folder, name, obj):
     obj.__name__ = name
     contents[name] = entry
 
-    if folder.__dumpling__.session is not _detached:
+    if folder.__dumpling__.session is not _unattached:
         _attach(folder, entry)
 
     set_dirty(obj)
@@ -256,11 +254,12 @@ def _attach(parent, entry):
     session = parent.__dumpling__.session
 
     obj = entry.loaded
-    state = obj.__dumpling__
-    state.session = session
-    state.path = entry.path
-    state.file = entry.file
-    state.dirty = True
+    if obj:
+        state = obj.__dumpling__
+        state.session = session
+        state.path = entry.path
+        state.file = entry.file
+        state.dirty = True
 
     if entry.is_folder:
         state.dirty_children = True
@@ -291,6 +290,19 @@ def delete_child(folder, name):
     entry = contents[name]
     entry.deleted = True
     set_folder_dirty(folder)
+    if entry.loaded:
+        _detach(entry)
+
+
+def _detach(entry):
+    state = entry.loaded.__dumpling__
+    state.detached_from = state.path
+    if entry.is_folder:
+        for subentry in _folder_contents(entry.loaded).values():
+            subentry.detached_from = subentry.path
+            if subentry.loaded:
+                _detach(subentry)
+    state.session = _detached
 
 
 def _session_for(obj):
@@ -301,6 +313,7 @@ def _session_for(obj):
 
 class _FolderEntry(object):
     deleted = False
+    detached_from = None
     replaces = None
 
     def __init__(self, name, is_folder, loaded=None, parent=None):
@@ -327,7 +340,7 @@ def _folder_contents(folder):
     contents = state.folder_contents
     if contents is None:
         contents = {}
-        if state.session is not _detached:
+        if state.session is not _unattached:
             fs = state.session.fs
             if fs.exists(state.path):
                 for fname in fs.listdir(state.path):
@@ -473,16 +486,23 @@ def _save(fs, obj):
                 child_state = entry.loaded.__dumpling__
                 if child_state.dirty or child_state.dirty_children:
                     _save(fs, entry.loaded)
+            elif entry.detached_from:
+                if entry.is_folder:
+                    fs.mv(entry.detached_from, entry.path)
+                else:
+                    fs.mv(entry.detached_from + '.yaml', entry.path + '.yaml')
 
 
 _detached = object()
+_unattached = object()
 
 
 class _ObjectState(object):
     dirty = False
     dirty_children = False
     folder_contents = None
-    session = _detached
+    session = _unattached
+    detached_from = None
 
 
 class _ObjectStateProperty(object):
