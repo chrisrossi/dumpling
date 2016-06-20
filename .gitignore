@@ -1,6 +1,7 @@
 *.pyc
 .*.swp
 *.egg-info
+.cache
 .coverage
 .tox
 __pycache__

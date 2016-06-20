@@ -260,7 +260,7 @@ def _attach(parent, entry):
     session = parent.__dumpling__.session
 
     obj = entry.loaded
-    if obj:
+    if obj is not None:
         state = obj.__dumpling__
         state.session = session
         state.path = entry.path
@@ -496,8 +496,8 @@ def _save(fs, obj):
                     rm(prev)
                 child_state = entry.loaded.__dumpling__
                 if (child_state.detached_from or
-                    child_state.dirty or
-                    child_state.dirty_children):
+                        child_state.dirty or
+                        child_state.dirty_children):
                     _save(fs, entry.loaded)
             elif entry.detached_from:
                 if entry.is_folder:
@@ -521,7 +521,7 @@ class _ObjectState(object):
 class _ObjectStateProperty(object):
 
     def __get__(self, obj, type=None):
-        if obj is None:  #pragma no cover
+        if obj is None:  # pragma no cover
             return self
         state = _ObjectState()
         setattr(obj, '__dumpling__', state)
@@ -630,7 +630,7 @@ class PersistentDict(dict):
         if hasattr(mapping, 'values'):
             _connect(self, *mapping.values())
         else:
-            _connect(self, *(v for k,v in mapping))
+            _connect(self, *(v for k, v in mapping))
         set_dirty(self)
         super(PersistentDict, self).update(mapping)
 
@@ -654,13 +654,13 @@ def _connect(model, *targets):
 
 PY3 = sys.version_info[0] == 3
 
-if PY3:  #pragma no cover
+if PY3:  # pragma no cover
     string_type = str
-else:    #pragma no cover
+else:    # pragma no cover
     string_type = unicode
 
 
-if not PY3:  #pragma no cover
+if not PY3:  # pragma no cover
     # Avoid ugly !!python/unicode tags
     yaml.add_representer(
         string_type,
@@ -676,6 +676,3 @@ if not PY3:  #pragma no cover
 @folder
 class Folder(object):
     pass
-
-
-
